@@ -12,6 +12,7 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <script src="config.js"></script>
+<script>window.FICHAJES_LOGO = window.FICHAJES_LOGO || 'logo.png';</script>
 <title>Fichajes FAB</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap">
 <style>
@@ -488,9 +489,10 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   $('#salir').onclick = function () { cerrarSesion(''); };
   $('#salir').onkeydown = function (e) { if (e.key === 'Enter') cerrarSesion(''); };
 
+  var estadoInicial = null;
   function arrancar() {
     return api('estado').then(function (r) {
-      aplicarEstado(r); usuario = r.usuario; mostrar('app');
+      aplicarEstado(r); usuario = r.usuario; mostrar('app'); estadoInicial = r;
       ir(rutaActual);
       actualizarPendientes();
     }).catch(function (e) { if (e.message !== 'silencio') cerrarSesion(e.message); });
@@ -515,7 +517,8 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   function aplicarEstado(r) { est = r; cargadoEn = Date.now(); offset = r.ahora - Date.now(); }
 
   function vFichar(v) {
-    return api('estado').then(function (r) {
+    var pet = estadoInicial ? Promise.resolve(estadoInicial) : api('estado'); estadoInicial = null;
+    return pet.then(function (r) {
       aplicarEstado(r);
       v.innerHTML =
         '<div class="panel">' +
@@ -543,36 +546,47 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       $('#conf-no').onclick = function () { tipoPend = null; $('#confirmar').hidden = true; $('#acciones').hidden = false; };
       $('#conf-si').onclick = confirmarFichaje;
       tic();
+      precalentarGeo();
     });
   }
   function pedirConfirmacion(tipo) {
     tipoPend = tipo; $('#acciones').hidden = true; $('#confirmar').hidden = false; $('#comentario').value = '';
     $('#conf-si').textContent = 'Confirmar ' + ETQ[tipo].toLowerCase();
-    tic(); obtenerUbicacion();
+    tic();
+    if (geo && !geo.error && Date.now() - geo.cuando < 120000) { geoProm = Promise.resolve(); pintarGeo('ok', 'Ubicación lista · precisión ±' + geo.prec + ' m'); }
+    else obtenerUbicacion();
+  }
+  /** Si el permiso de ubicación ya está concedido, la pide en segundo plano al abrir «Fichar» para no esperar luego. */
+  function precalentarGeo() {
+    try {
+      if (!navigator.permissions || !navigator.geolocation) return;
+      navigator.permissions.query({ name: 'geolocation' }).then(function (p) { if (p.state === 'granted' && !tipoPend) obtenerUbicacion(true); }).catch(function () {});
+    } catch (e) {}
   }
   function pintarGeo(cl, txt) { var g = $('#geo'); if (!g) return; g.className = 'geo ' + cl; g.querySelector('span').textContent = txt; }
-  function obtenerUbicacion() {
-    geo = null; pintarGeo('esp', 'Obteniendo tu ubicación…');
+  function obtenerUbicacion(silencio) {
+    geo = null; if (!silencio) pintarGeo('esp', 'Obteniendo tu ubicación…');
     geoProm = new Promise(function (ok) {
       function sinGeo(motivo) {
         if (window.MOCK_GEO) { geo = window.MOCK_GEO(); pintarGeo('ok', 'Ubicación simulada (modo prueba) · ±' + geo.prec + ' m'); return ok(); }
         geo = { error: motivo }; pintarGeo('mal', motivo + '. Se registrará sin ubicación.'); ok();
       }
       if (!navigator.geolocation) return sinGeo('Este dispositivo no permite ubicación');
-      var fin = setTimeout(function () { sinGeo('No se ha podido obtener la ubicación'); }, 12000);
+      var fin = setTimeout(function () { sinGeo('No se ha podido obtener la ubicación'); }, 8000);
       try {
         navigator.geolocation.getCurrentPosition(function (p) {
-          clearTimeout(fin); geo = { lat: p.coords.latitude, lng: p.coords.longitude, prec: Math.round(p.coords.accuracy) };
+          clearTimeout(fin); geo = { lat: p.coords.latitude, lng: p.coords.longitude, prec: Math.round(p.coords.accuracy), cuando: Date.now() };
           pintarGeo('ok', 'Ubicación lista · precisión ±' + geo.prec + ' m'); ok();
         }, function (er) { clearTimeout(fin); sinGeo(er.code === 1 ? 'Permiso de ubicación denegado' : 'Ubicación no disponible'); },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 });
       } catch (e) { clearTimeout(fin); sinGeo('Ubicación no disponible'); }
     });
   }
   function confirmarFichaje() {
     var b = $('#conf-si'); if (b.disabled) return; b.disabled = true;
     var tipo = tipoPend, com = $('#comentario').value;
-    (geoProm || Promise.resolve()).then(function () {
+    // Como mucho 4 s más esperando al GPS: después se ficha igualmente (sin ubicación si no ha llegado).
+    Promise.race([geoProm || Promise.resolve(), new Promise(function (ok) { setTimeout(ok, 4000); })]).then(function () {
       var meta = { comentario: com, dispositivo: navigator.userAgent };
       if (geo && !geo.error) meta.geo = geo; else meta.geoError = geo ? geo.error : 'SIN DATOS';
       return api('fichar', tipo, meta);
@@ -580,7 +594,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       var u = r.hoy.eventos[r.hoy.eventos.length - 1];
       toast(ETQ[u.tipo] + ' registrada a las ' + u.hora);
       try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
-      tipoPend = null; ir('fichar');
+      tipoPend = null; aplicarEstado(r); estadoInicial = r; ir('fichar');
     }).catch(function (e) { fallo(e); b.disabled = false; });
   }
   function tic() {
@@ -1323,7 +1337,12 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   // ---------- logo ----------
   var LOGO = null;
   function cargarLogo() {
-    return api('logo').then(function (url) {
+    // App instalable: logo incluido en la propia app. Apps Script: se guarda en el móvil tras la primera vez.
+    var guardado = null; try { guardado = localStorage.getItem('fichajes-logo'); } catch (e) {}
+    var origen = window.FICHAJES_LOGO ? Promise.resolve(window.FICHAJES_LOGO)
+      : guardado ? Promise.resolve(guardado)
+      : api('logo').then(function (u) { try { if (u) localStorage.setItem('fichajes-logo', u); } catch (e) {} return u; });
+    return origen.then(function (url) {
       if (!url) return;
       return new Promise(function (ok) {
         var img = new Image();
