@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#0F2A1E">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Fichajes">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
@@ -115,6 +115,8 @@ textarea { min-height: 80px; resize: vertical; }
 .nav svg { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .nav .badge { margin-left: auto; background: var(--danger); color: #fff; border-radius: 999px; font-size: 12px; padding: 1px 8px; font-weight: 600; }
 .menu .pie { margin-top: auto; }
+.version { font-size: 12px; color: var(--side-muted); padding: 6px 10px 0; }
+.acceso .version { color: var(--muted); padding: 0; text-align: center; }
 .velo-menu { position: fixed; inset: 0; background: rgba(5, 12, 8, .5); z-index: 45; }
 main { min-height: 100vh; }
 .barra { position: sticky; top: 0; z-index: 30; background: var(--bg); display: flex; align-items: center; gap: 10px;
@@ -287,6 +289,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       <button class="btn prim" type="submit" id="l-btn">Entrar</button>
     </form>
     <p class="ayuda">¿Has olvidado tu clave? Pide a administración que te genere una nueva.</p>
+    <p class="ayuda version" id="ver-login"></p>
   </div>
 </section>
 
@@ -309,7 +312,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     <div class="marca"><div class="volante" data-icono="volante"></div><b>Fichajes FAB</b></div>
     <div class="yo"><b id="yo-nombre"></b><span id="yo-info"></span></div>
     <nav class="nav" id="nav"></nav>
-    <div class="nav pie"><a id="salir" tabindex="0"><span data-icono="salir"></span>Cerrar sesión</a></div>
+    <div class="nav pie"><a id="salir" tabindex="0"><span data-icono="salir"></span>Cerrar sesión</a><span class="version" id="ver-menu"></span></div>
   </aside>
   <div class="velo-menu" id="velo-menu" hidden></div>
   <nav class="tabbar" id="tabbar" aria-label="Secciones"></nav>
@@ -328,6 +331,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
+  var VERSION_APP = '1.5 (12-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
@@ -353,6 +357,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   };
   function icono(n) { return '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICONOS[n] + '</svg>'; }
   $$('[data-icono]').forEach(function (el) { el.innerHTML = icono(el.dataset.icono); });
+  ['#ver-menu', '#ver-login'].forEach(function (q) { var el = document.querySelector(q); if (el) el.textContent = 'Versión ' + VERSION_APP; });
 
   // ---------- utilidades ----------
   var fH = new Intl.DateTimeFormat('es-ES', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' });
@@ -772,7 +777,8 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
           '<div class="campo"><label for="k1">Clave actual</label><input id="k1" type="password" inputmode="numeric" maxlength="10" autocomplete="current-password"></div>' +
           '<div class="campo"><label for="k2">Nueva clave</label><input id="k2" type="password" inputmode="numeric" maxlength="10" autocomplete="new-password"></div>' +
           '<div class="campo"><label for="k3">Repite la nueva</label><input id="k3" type="password" inputmode="numeric" maxlength="10" autocomplete="new-password"></div></div>' +
-          '<p class="ayuda" style="margin:0">Solo números, entre 6 y 10 cifras.</p><div><button class="btn prim" type="submit">Cambiar clave</button></div></form>';
+          '<p class="ayuda" style="margin:0">Solo números, entre 6 y 10 cifras.</p><div><button class="btn prim" type="submit">Cambiar clave</button></div></form>' +
+        '<p class="ayuda" style="margin:0;text-align:center">Fichajes FAB · Versión ' + VERSION_APP + '</p>';
       $('#f-clave').addEventListener('submit', function (e) {
         e.preventDefault();
         if ($('#k2').value !== $('#k3').value) return toast('Las dos claves nuevas no coinciden.');
