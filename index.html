@@ -80,7 +80,7 @@ textarea { min-height: 80px; resize: vertical; }
 .check input { width: 20px; min-height: 20px; }
 
 /* Pantallas de acceso */
-.acceso { min-height: 100vh; display: grid; place-items: center; padding-block: 32px; }
+.acceso { min-height: 100vh; display: grid; place-items: center; padding-block: calc(32px + env(safe-area-inset-top, 0px)) calc(32px + env(safe-area-inset-bottom, 0px)); }
 .acceso-caja { width: 100%; max-width: 380px; display: flex; flex-direction: column; gap: 18px; }
 .marca-grande { display: flex; align-items: center; gap: 12px; }
 .volante { width: 46px; height: 46px; border-radius: 14px; background: var(--accent); display: grid; place-items: center; flex: none; }
@@ -117,8 +117,26 @@ textarea { min-height: 80px; resize: vertical; }
 .menu .pie { margin-top: auto; }
 .velo-menu { position: fixed; inset: 0; background: rgba(5, 12, 8, .5); z-index: 45; }
 main { min-height: 100vh; }
-.barra { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 30; background: var(--bg); display: flex; align-items: center; gap: 10px; padding-block: 10px; border-bottom: 1px solid var(--line); }
-body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 31; background: var(--bg); }
+.barra { position: sticky; top: 0; z-index: 30; background: var(--bg); display: flex; align-items: center; gap: 10px;
+  padding-block: calc(10px + env(safe-area-inset-top, 0px)) 10px; border-bottom: 1px solid var(--line); }
+.barra .volante { width: 32px; height: 32px; border-radius: 10px; }
+.barra .volante svg { width: 20px; height: 20px; }
+/* Barra inferior de iconos (móvil) */
+.tabbar { display: none; }
+@media (max-width: 899px) {
+  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--surface); border-top: 1px solid var(--line);
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
+    padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); }
+  .tabbar button { border: 0; background: transparent; color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; font: 600 11px/1.1 var(--f-body); padding: 6px 2px; border-radius: 12px; min-height: 54px; cursor: pointer; position: relative; }
+  .tabbar svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .tabbar button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+  .tabbar button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+  .tabbar .badge { position: absolute; top: 2px; right: calc(50% - 22px); background: var(--danger); color: #fff; border-radius: 999px; font-size: 10px; padding: 1px 6px; }
+  .contenido { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important; }
+  .toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  .barra .hamb { display: none; }
+}
 .barra b { font: 700 20px/1 var(--f-display); }
 .hamb { width: 44px; height: 44px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); display: grid; place-items: center; cursor: pointer; }
 .hamb svg { width: 22px; height: 22px; stroke: var(--ink); stroke-width: 2; fill: none; stroke-linecap: round; }
@@ -294,8 +312,9 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     <div class="nav pie"><a id="salir" tabindex="0"><span data-icono="salir"></span>Cerrar sesión</a></div>
   </aside>
   <div class="velo-menu" id="velo-menu" hidden></div>
+  <nav class="tabbar" id="tabbar" aria-label="Secciones"></nav>
   <main>
-    <div class="barra gutter"><button class="hamb" id="hamb" type="button" aria-label="Abrir menú"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><b id="barra-titulo">Fichar</b></div>
+    <div class="barra gutter"><button class="hamb" id="hamb" type="button" aria-label="Abrir menú"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div class="volante" data-icono="volante"></div><b id="barra-titulo">Fichar</b></div>
     <div class="contenido gutter" id="vista"></div>
   </main>
 </div>
@@ -466,6 +485,13 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     $('#nav').innerHTML = html;
     $('#yo-nombre').textContent = usuario.nombreCompleto;
     $('#yo-info').textContent = 'Nº ' + usuario.id + (usuario.puesto ? ' · ' + usuario.puesto : '') + (usuario.rol === 'admin' ? ' · Administración' : '');
+    // Barra inferior (móvil): secciones del trabajador y, para administración, «Gestión» abre el menú completo
+    var tabs = [['fichar', 'Fichar'], ['calendario', 'Calendario'], ['solicitudes', 'Solicitudes'], ['cuenta', 'Mi cuenta']];
+    var enGestion = RUTAS[rutaActual] && RUTAS[rutaActual].admin;
+    $('#tabbar').innerHTML = tabs.map(function (t) {
+      return '<button type="button" data-tab="' + t[0] + '"' + (t[0] === rutaActual ? ' aria-current="page"' : '') + '>' + icono(RUTAS[t[0]].i) + '<span>' + t[1] + '</span></button>';
+    }).join('') + (usuario.rol === 'admin' ? '<button type="button" data-tab="gestion"' + (enGestion ? ' aria-current="page"' : '') + '>' + icono('panel') + '<span>Gestión</span>' +
+      (pendientesN ? '<span class="badge">' + pendientesN + '</span>' : '') + '</button>' : '');
   }
   function enlace(k) {
     return '<a data-ruta="' + k + '" tabindex="0"' + (k === rutaActual ? ' aria-current="page"' : '') + '>' + icono(RUTAS[k].i) + '<span>' + RUTAS[k].t + '</span>' +
@@ -485,6 +511,10 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   $('#nav').addEventListener('click', function (e) { var a = e.target.closest('[data-ruta]'); if (a) ir(a.dataset.ruta); });
   $('#nav').addEventListener('keydown', function (e) { var a = e.target.closest('[data-ruta]'); if (a && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); ir(a.dataset.ruta); } });
   $('#hamb').onclick = function () { menu(true); };
+  $('#tabbar').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tab]'); if (!b) return;
+    if (b.dataset.tab === 'gestion') menu(true); else ir(b.dataset.tab);
+  });
   $('#velo-menu').onclick = function () { menu(false); };
   $('#salir').onclick = function () { cerrarSesion(''); };
   $('#salir').onkeydown = function (e) { if (e.key === 'Enter') cerrarSesion(''); };

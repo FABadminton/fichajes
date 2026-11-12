@@ -1,6 +1,6 @@
 // Fichajes FAB · service worker: permite instalar la app y que se abra al instante.
 // Las llamadas al servidor (Apps Script) nunca se guardan: los datos siempre son los del momento.
-const VERSION = 'fichajes-fab-v3';
+const VERSION = 'fichajes-fab-v4';
 const BASE = ['./', './index.html', './config.js', './manifest.webmanifest', './logo.png', './icons/icon-192.png', './icons/icon-512.png'];
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(BASE))); self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
