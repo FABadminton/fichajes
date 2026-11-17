@@ -194,6 +194,7 @@ main { min-height: 100vh; }
 /* Calendario */
 .mesnav { display: flex; align-items: center; gap: 8px; }
 .mesnav b { font: 600 24px/1 var(--f-display); min-width: 150px; text-align: center; }
+.sel-mes { width: auto; min-width: 170px; font: 600 19px/1.1 var(--f-display); text-align: center; padding: 8px 12px; cursor: pointer; }
 .mesnav .btn { min-width: 44px; padding: 6px 10px; }
 .totales { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .total { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
@@ -265,6 +266,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
 @media (min-width: 700px) { .velo { align-items: center; } .hoja { border-radius: 20px; } }
 .botones { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 .botones .btn { min-width: 120px; }
+.lista-checks { display: flex; flex-direction: column; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 8px; max-height: 260px; overflow-y: auto; }
 .horario-sem { display: grid; grid-template-columns: 96px 1fr; gap: 8px; align-items: center; }
 .cred { background: var(--accent-soft); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 6px; }
 .cred b { font: 700 32px/1 var(--f-display); letter-spacing: .12em; }
@@ -336,7 +338,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
-  var VERSION_APP = '1.7 (17-11-2026)';
+  var VERSION_APP = '1.8 (17-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
@@ -411,6 +413,12 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     };
   }
   function mesTxt(ym) { var p = ym.split('-'); return cap(new Date(+p[0], +p[1] - 1, 1).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })); }
+  /** Desplegable con los 12 meses del año que se está viendo (las flechas ‹ › cambian de año). */
+  function selMes(ym) {
+    var y = ym.slice(0, 4), o = '';
+    for (var m = 1; m <= 12; m++) { var v = y + '-' + String(m).padStart(2, '0'); o += '<option value="' + v + '"' + (v === ym ? ' selected' : '') + '>' + mesTxt(v) + '</option>'; }
+    return '<select class="sel-mes" aria-label="Elegir mes">' + o + '</select>';
+  }
   function moverMes(ym, n) { var p = ym.split('-'), d = new Date(+p[0], +p[1] - 1 + n, 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
   function hoyStr() { return est ? est.hoy.fecha : new Date().toISOString().slice(0, 10); }
   function toast(t) { var el = $('#toast'); el.textContent = t; el.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(function () { el.hidden = true; }, 3400); }
@@ -712,13 +720,14 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       });
       v.innerHTML =
         '<div class="cab"><div><h1>' + (propio ? 'Mi calendario' : esc(r.trabajador.nombre)) + '</h1>' + (propio ? '' : '<p class="ayuda">Calendario de Nº ' + r.trabajador.id + '</p>') + '</div>' +
-        '<div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button><b>' + mesTxt(calYm) + '</b><button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
+        '<div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button>' + selMes(calYm) + '<button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
         '<div class="totales"><div class="total"><span>Teóricas</span><b class="num">' + hm(r.teoricasMs) + '</b></div><div class="total"><span>Fichadas</span><b class="num">' + hm(r.fichadasMs) + '</b></div>' +
         '<div class="total"><span>Diferencia</span><b class="num ' + (dif >= 0 ? 'pos' : 'neg') + '">' + hm(dif, true) + '</b></div></div>' +
         '<p class="ayuda" style="margin-top:-8px">Teóricas: según el horario, hasta hoy y sin contar vacaciones, permisos ni festivos.</p>' +
         '<div class="cal">' + DIAS_C.map(function (d) { return '<div class="dn">' + d + '</div>'; }).join('') + celdas + '</div>' +
         leyenda() + '<div id="det-dia"></div>';
       $$('[data-mes]', v).forEach(function (b) { b.onclick = function () { calYm = moverMes(calYm, +b.dataset.mes); calSel = null; param = Object.assign({}, param, { ym: calYm }); vCalendario(v).catch(fallo); }; });
+      $$('.sel-mes', v).forEach(function (sel) { sel.onchange = function () { calYm = sel.value; calSel = null; param = Object.assign({}, param, { ym: calYm }); vCalendario(v).catch(fallo); }; });
       v.querySelector('.cal').onclick = function (e) { var c = e.target.closest('[data-dia]'); if (!c) return; calSel = c.dataset.dia; $$('.cel.sel', v).forEach(function (x) { x.classList.remove('sel'); }); c.classList.add('sel'); detalleDia(calSel, propio); };
       var dSel = calSel && calSel.slice(0, 7) === calYm ? calSel : (hoyStr().slice(0, 7) === calYm ? hoyStr() : null);
       if (dSel) { calSel = dSel; var c = v.querySelector('[data-dia="' + dSel + '"]'); if (c) c.classList.add('sel'); detalleDia(dSel, propio); }
@@ -740,27 +749,103 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
           (propio && !d.futuro ? ' <button class="btn mini sec" data-anular="' + e.id + '">Pedir anulación</button>' : '') + '</span>' +
           (e.comentario ? '<span class="com">' + esc(e.comentario) + '</span>' : '') + '</li>';
       }).join('') : '<li style="display:block" class="vacio">Sin fichajes este día.</li>') + '</ul>' +
-      (propio && !d.futuro ? '<div><button class="btn sec" data-anadir="' + f + '">Añadir un fichaje olvidado</button></div>' : '') + '</div>';
+      (propio && !d.futuro ? '<div><button class="btn sec" data-anadir="' + f + '">Solicitar corrección de este día</button></div>' : '') + '</div>';
     var box = $('#det-dia'); box.innerHTML = html;
     box.onclick = function (e) {
       var a = e.target.closest('[data-anular]'), n = e.target.closest('[data-anadir]');
-      if (a) formCorreccion('ANULAR', f, a.dataset.anular, d); else if (n) formCorreccion('AÑADIR', f, null, d);
+      if (a) formSolicitud({ que: 'anular', fecha: f, fichajeId: a.dataset.anular }).catch(fallo); else if (n) formSolicitud({ que: 'olvido', fecha: f }).catch(fallo);
     };
   }
-  function formCorreccion(accion, fecha, fichajeId, d) {
-    var ev = fichajeId ? d.eventos.filter(function (e) { return e.id === fichajeId; })[0] : null;
-    var h = abrirHoja('<form id="f-corr" novalidate style="display:contents"><h3>' + (accion === 'AÑADIR' ? 'Añadir fichaje olvidado' : 'Pedir anulación de un fichaje') + '</h3>' +
-      '<p class="ayuda" style="margin:0">' + fechaLarga(fecha) + '</p>' +
-      (accion === 'AÑADIR' ? '<div class="rejilla"><div class="campo"><label for="c-tipo">Fichaje</label><select id="c-tipo">' + Object.keys(ETQ).map(function (k) { return '<option value="' + k + '">' + ETQ[k] + '</option>'; }).join('') + '</select></div>' +
-        '<div class="campo"><label for="c-hora">Hora real</label><input type="time" id="c-hora"></div></div>'
-        : '<div class="aviso">' + ETQ[ev.tipo] + ' de las ' + ev.hora.slice(0, 5) + '</div>') +
-      '<div class="campo"><label for="c-motivo">Motivo</label><textarea id="c-motivo" placeholder="Ej.: olvidé fichar la salida al terminar el entrenamiento"></textarea></div>' +
-      '<div class="aviso error" hidden></div><p class="ayuda" style="margin:0">Administración revisará la solicitud. El fichaje original no se borra: queda guardado junto a la corrección.</p>' +
-      '<div class="botones"><button type="button" class="btn sec" data-cerrar>Cancelar</button><button class="btn prim" type="submit">Enviar solicitud</button></div></form>');
-    $('#f-corr', h).addEventListener('submit', function (e) {
-      e.preventDefault();
-      api('solicitarCorreccion', { accion: accion, fecha: fecha, fichajeId: fichajeId, tipo: accion === 'AÑADIR' ? $('#c-tipo').value : '', hora: accion === 'AÑADIR' ? $('#c-hora').value : '', motivo: $('#c-motivo').value })
-        .then(function () { cerrarHoja(); toast('Solicitud enviada'); actualizarPendientes(); }).catch(function (er) { errorHoja(er.message); });
+  // ---------- Formulario único de solicitudes: ausencias, olvidos de fichaje y anulaciones ----------
+  function tramosDe(fecha) {
+    var h = (usuario && usuario.horario) || {}, d = new Date(fecha + 'T12:00:00').getDay(); d = d === 0 ? 7 : d;
+    try { return String(h[d] || '').split(',').filter(Boolean).map(function (x) { return x.trim().split('-'); }); } catch (e) { return []; }
+  }
+  function formSolicitud(op) {
+    op = op || {};
+    return api('misSolicitudes').then(function (r) {
+      var que = op.que || 'ausencia', modo = 'uno', jornada = '';
+      var h = abrirHoja('<form id="f-sol" novalidate style="display:contents"><h3>Nueva solicitud</h3>' +
+        '<div class="seg seg3" role="group" aria-label="Qué necesitas" id="s-que">' +
+          '<button type="button" data-que="ausencia">Vacaciones o permiso</button><button type="button" data-que="olvido">Olvidé fichar</button><button type="button" data-que="anular">Anular un fichaje</button></div>' +
+        // --- ausencias
+        '<div id="s-aus" style="display:flex;flex-direction:column;gap:14px">' +
+          '<div class="campo"><label for="a-tipo">Tipo</label><select id="a-tipo">' + r.tipos.map(function (t) { return '<option value="' + t.id + '">' + t.nombre + '</option>'; }).join('') + '</select></div>' +
+          bloqueModalidad('a') + '</div>' +
+        // --- olvido
+        '<div id="s-olv" style="display:flex;flex-direction:column;gap:14px">' +
+          '<div class="campo"><label for="o-fecha">Día</label><input type="date" id="o-fecha" max="' + hoyStr() + '" value="' + (op.fecha || hoyStr()) + '"></div>' +
+          '<div class="campo"><span class="lbl">¿Qué olvidaste fichar?</span><div class="seg seg3" role="group" aria-label="Tipo de olvido" id="o-modo">' +
+            '<button type="button" data-modo="uno">Un fichaje</button><button type="button" data-modo="dia">Día entero</button><button type="button" data-modo="tramo">Entrada y salida</button></div></div>' +
+          '<div id="o-uno" class="rejilla"><div class="campo"><label for="o-tipo">Fichaje</label><select id="o-tipo">' + Object.keys(ETQ).map(function (k) { return '<option value="' + k + '">' + ETQ[k] + '</option>'; }).join('') + '</select></div>' +
+            '<div class="campo"><label for="o-hora">Hora real</label><input type="time" id="o-hora"></div></div>' +
+          '<div id="o-dia" class="aviso ok"></div>' +
+          '<div id="o-tramo" style="display:flex;flex-direction:column;gap:12px">' +
+            '<div class="campo"><span class="lbl">Jornada</span><div class="seg" role="group" aria-label="Jornada" id="o-jornada"><button type="button" data-j="MAÑANA" aria-pressed="false">Mañana</button><button type="button" data-j="TARDE" aria-pressed="false">Tarde</button></div></div>' +
+            '<div class="rejilla"><div class="campo"><label for="o-ent">Hora de entrada</label><input type="time" id="o-ent"></div><div class="campo"><label for="o-sal">Hora de salida</label><input type="time" id="o-sal"></div></div></div>' +
+        '</div>' +
+        // --- anular
+        '<div id="s-anu" style="display:flex;flex-direction:column;gap:14px">' +
+          '<div class="campo"><label for="n-fecha">Día</label><input type="date" id="n-fecha" max="' + hoyStr() + '" value="' + (op.fecha || hoyStr()) + '"></div>' +
+          '<div class="campo"><label for="n-fich">Fichaje que quieres anular</label><select id="n-fich"><option value="">Cargando…</option></select></div></div>' +
+        '<div class="campo"><label for="s-motivo">Motivo <span class="ayuda" id="s-motivo-ayuda"></span></label><textarea id="s-motivo"></textarea></div>' +
+        '<div class="aviso error" hidden></div>' +
+        '<p class="ayuda" style="margin:0" id="s-nota"></p>' +
+        '<div class="botones"><button type="button" class="btn sec" data-cerrar>Cancelar</button><button class="btn prim" type="submit" id="s-enviar">Enviar solicitud</button></div></form>');
+      var datosA = enlazarModalidad('a', h, 'a-tipo');
+      function pintarOlvido() {
+        $$('#o-modo button', h).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.modo === modo); });
+        $('#o-uno', h).hidden = modo !== 'uno'; $('#o-dia', h).hidden = modo !== 'dia'; $('#o-tramo', h).hidden = modo !== 'tramo';
+        var tr = tramosDe($('#o-fecha', h).value);
+        $('#o-dia', h).textContent = tr.length ? 'Se registrará tu jornada completa según tu horario: ' + tr.map(function (x) { return x[0] + ' a ' + x[1]; }).join(' y ') + '.'
+          : 'Ese día no tienes horario asignado. Usa «Entrada y salida» e indica las horas.';
+        $$('#o-jornada button', h).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.j === jornada); });
+      }
+      function proponerHoras() { // rellena las horas del tramo de mañana o tarde según el horario
+        var tr = tramosDe($('#o-fecha', h).value), x = tr.filter(function (t) { return jornada === 'TARDE' ? t[0] >= '14:00' : t[0] < '14:00'; })[0];
+        if (x) { $('#o-ent', h).value = x[0]; $('#o-sal', h).value = x[1]; }
+      }
+      function cargarFichajes() {
+        var f = $('#n-fecha', h).value, sel = $('#n-fich', h); if (!f) return;
+        api('calendario', f.slice(0, 7), '').then(function (c) {
+          var dia = c.dias.filter(function (x) { return x.fecha === f; })[0], ev = dia ? dia.eventos : [];
+          sel.innerHTML = ev.length ? ev.map(function (e) { return '<option value="' + e.id + '">' + e.hora.slice(0, 5) + ' · ' + ETQ[e.tipo] + '</option>'; }).join('') : '<option value="">No hay fichajes ese día</option>';
+          if (op.fichajeId) { sel.value = op.fichajeId; op.fichajeId = null; }
+        }).catch(function (e) { errorHoja(e.message); });
+      }
+      function pintar() {
+        $$('#s-que button', h).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.que === que); });
+        $('#s-aus', h).hidden = que !== 'ausencia'; $('#s-olv', h).hidden = que !== 'olvido'; $('#s-anu', h).hidden = que !== 'anular';
+        $('#s-motivo', h).placeholder = que === 'ausencia' ? '' : que === 'olvido' ? 'Ej.: olvidé fichar al terminar el entrenamiento' : 'Ej.: fiché la salida por error a media mañana';
+        $('#s-motivo-ayuda', h).textContent = que === 'ausencia' ? '(opcional en vacaciones)' : '';
+        $('#s-nota', h).textContent = que === 'ausencia' ? '' : 'Administración revisará la solicitud. El fichaje original no se borra: queda guardado junto a la corrección.';
+        if (que === 'olvido') pintarOlvido();
+        if (que === 'anular') cargarFichajes();
+      }
+      $('#s-que', h).onclick = function (e) { var b = e.target.closest('[data-que]'); if (b) { que = b.dataset.que; pintar(); } };
+      $('#o-modo', h).onclick = function (e) { var b = e.target.closest('[data-modo]'); if (b) { modo = b.dataset.modo; pintarOlvido(); } };
+      $('#o-jornada', h).onclick = function (e) { var b = e.target.closest('[data-j]'); if (b) { jornada = b.dataset.j; pintarOlvido(); proponerHoras(); } };
+      $('#o-fecha', h).onchange = function () { pintarOlvido(); if (jornada) proponerHoras(); };
+      $('#n-fecha', h).onchange = cargarFichajes;
+      pintar();
+      $('#f-sol', h).addEventListener('submit', function (e) {
+        e.preventDefault();
+        var motivo = $('#s-motivo', h).value, pet;
+        if (que === 'ausencia') pet = api('solicitarAusencia', Object.assign(datosA(), { tipo: $('#a-tipo', h).value, motivo: motivo }));
+        else if (que === 'anular') pet = api('solicitarCorreccion', { accion: 'ANULAR', fichajeId: $('#n-fich', h).value, motivo: motivo });
+        else {
+          var f = $('#o-fecha', h).value;
+          if (modo === 'uno') pet = api('solicitarCorreccion', { accion: 'AÑADIR', fecha: f, tipo: $('#o-tipo', h).value, hora: $('#o-hora', h).value, motivo: motivo });
+          else if (modo === 'dia') pet = api('solicitarCorreccion', { accion: 'AÑADIR_DIA', fecha: f, motivo: motivo });
+          else {
+            if (!jornada) return errorHoja('Indica si es la jornada de mañana o de tarde.');
+            pet = api('solicitarCorreccion', { accion: 'AÑADIR_TRAMO', fecha: f, jornada: jornada, horaEntrada: $('#o-ent', h).value, horaSalida: $('#o-sal', h).value, motivo: motivo });
+          }
+        }
+        var b = $('#s-enviar', h); b.disabled = true; b.textContent = 'Enviando…';
+        pet.then(function () { cerrarHoja(); toast('Solicitud enviada'); actualizarPendientes(); if (rutaActual === 'solicitudes') ir('solicitudes'); })
+          .catch(function (er) { b.disabled = false; b.textContent = 'Enviar solicitud'; errorHoja(er.message); });
+      });
     });
   }
 
@@ -770,7 +855,13 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   function tarjetaSolicitud(s, modo) {
     var que, titulo;
     if (s.clase === 'AUSENCIA') { titulo = s.tipoNombre; que = rango(s); }
-    else { titulo = 'Corrección de fichaje'; que = fechaCorta(s.fecha) + ' · ' + (s.accion === 'AÑADIR' ? 'Añadir ' : 'Anular ') + ETQ[s.tipo].toLowerCase() + ' de las ' + s.hora; }
+    else if (s.accion === 'AÑADIR_VARIOS' && s.detalle) {
+      titulo = 'Olvido de fichaje';
+      var fx = s.detalle.fichajes || [], tramos = [];
+      for (var i = 0; i < fx.length; i += 2) tramos.push(fx[i].hora + (fx[i + 1] ? '–' + fx[i + 1].hora : ''));
+      que = fechaCorta(s.fecha) + ' · ' + (s.detalle.modalidad === 'DIA' ? 'Jornada completa: ' : 'Jornada de ' + String(s.detalle.jornada || '').toLowerCase() + ': ') + tramos.join(' y ');
+    }
+    else { titulo = s.accion === 'AÑADIR' ? 'Olvido de fichaje' : 'Anulación de fichaje'; que = fechaCorta(s.fecha) + ' · ' + (s.accion === 'AÑADIR' ? 'Añadir ' : 'Anular ') + ETQ[s.tipo].toLowerCase() + ' de las ' + s.hora; }
     return '<div class="sol"><div class="sol-cab"><b>' + (modo === 'admin' ? esc(s.nombre) + ' · ' : '') + esc(titulo) + '</b><span class="est ' + s.estado + '">' + s.estado + '</span></div>' +
       '<div>' + que + '</div>' + (s.motivo ? '<p>«' + esc(s.motivo) + '»</p>' : '') + (s.comentario ? '<p>Respuesta: ' + esc(s.comentario) + '</p>' : '') +
       (modo === 'propio' && s.clase === 'AUSENCIA' && s.estado === 'PENDIENTE' ? '<div><button class="btn mini sec" data-cancelar="' + s.id + '">Cancelar solicitud</button></div>' : '') +
@@ -781,21 +872,9 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   function vSolicitudes(v) {
     return api('misSolicitudes').then(function (r) {
       v.innerHTML = '<div class="cab"><h1>Mis solicitudes</h1><button class="btn prim" id="nueva-sol">Nueva solicitud</button></div>' +
-        '<p class="ayuda" style="margin:0">Pide vacaciones, permisos o días de asuntos propios. Para corregir un fichaje, entra en el día desde «Mi calendario».</p>' +
+        '<p class="ayuda" style="margin:0">Pide vacaciones, permisos o asuntos propios, avisa de un fichaje olvidado o pide anular uno erróneo.</p>' +
         '<div class="tarjetas">' + (r.lista.length ? r.lista.map(function (s) { return tarjetaSolicitud(s, 'propio'); }).join('') : '<div class="vacio">No has hecho ninguna solicitud.</div>') + '</div>';
-      $('#nueva-sol').onclick = function () {
-        var h = abrirHoja('<form id="f-aus" novalidate style="display:contents"><h3>Nueva solicitud</h3>' +
-          '<div class="campo"><label for="a-tipo">Tipo</label><select id="a-tipo">' + r.tipos.map(function (t) { return '<option value="' + t.id + '">' + t.nombre + '</option>'; }).join('') + '</select></div>' +
-          bloqueModalidad('a') +
-          '<div class="campo"><label for="a-motivo">Motivo <span class="ayuda">(opcional en vacaciones)</span></label><textarea id="a-motivo"></textarea></div>' +
-          '<div class="aviso error" hidden></div><div class="botones"><button type="button" class="btn sec" data-cerrar>Cancelar</button><button class="btn prim" type="submit">Enviar</button></div></form>');
-        var datosA = enlazarModalidad('a', h, 'a-tipo');
-        $('#f-aus', h).addEventListener('submit', function (e) {
-          e.preventDefault();
-          api('solicitarAusencia', Object.assign(datosA(), { tipo: $('#a-tipo').value, motivo: $('#a-motivo').value }))
-            .then(function () { cerrarHoja(); toast('Solicitud enviada'); actualizarPendientes(); ir('solicitudes'); }).catch(function (er) { errorHoja(er.message); });
-        });
-      };
+      $('#nueva-sol').onclick = function () { formSolicitud().catch(fallo); };
       v.onclick = function (e) { var c = e.target.closest('[data-cancelar]'); if (c) api('cancelarSolicitud', c.dataset.cancelar).then(function () { toast('Solicitud cancelada'); actualizarPendientes(); ir('solicitudes'); }).catch(fallo); };
     });
   }
@@ -1086,7 +1165,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     fiYm = fiYm || hoyStr().slice(0, 7);
     return Promise.all([api('fichajes', fiYm, fiT), selectorTrabajador('fi-t', fiT, 'Todos los trabajadores')]).then(function (r) {
       var l = r[0];
-      v.innerHTML = '<div class="cab"><h1>Fichajes</h1><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button><b>' + mesTxt(fiYm) + '</b><button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
+      v.innerHTML = '<div class="cab"><h1>Fichajes</h1><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button>' + selMes(fiYm) + '<button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
         '<div class="fila"><div class="crece">' + r[1] + '</div><span class="ayuda">' + l.length + ' registros</span></div>' +
         '<div class="tabla"><table><thead><tr><th>Fecha</th><th>Hora</th><th>Trabajador</th><th>Tipo</th><th>Comentario</th><th>Ubicación</th></tr></thead><tbody>' +
         (l.length ? l.map(function (f) {
@@ -1096,6 +1175,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
             '<td>' + (f.geo ? '<a href="https://www.google.com/maps?q=' + f.geo.lat + ',' + f.geo.lng + '" target="_blank" rel="noopener">Ver mapa</a> <span class="ayuda">±' + f.geo.prec + ' m</span>' : '<span class="ayuda">' + esc(cap((f.geoEstado || 'Sin ubicación').toLowerCase())) + '</span>') + '</td></tr>';
         }).join('') : '<tr><td colspan="6" class="vacio">No hay fichajes en este mes.</td></tr>') + '</tbody></table></div>';
       $$('[data-mes]', v).forEach(function (b) { b.onclick = function () { fiYm = moverMes(fiYm, +b.dataset.mes); vFichajes(v).catch(fallo); }; });
+      $$('.sel-mes', v).forEach(function (sel) { sel.onchange = function () { fiYm = sel.value; vFichajes(v).catch(fallo); }; });
       $('#fi-t').onchange = function () { fiT = this.value; vFichajes(v).catch(fallo); };
     });
   }
@@ -1108,7 +1188,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     eqYm = eqYm || hoyStr().slice(0, 7);
     return api('equipo', eqYm).then(function (r) {
       var hoy = hoyStr();
-      v.innerHTML = '<div class="cab"><h1>Calendario del equipo</h1><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button><b>' + mesTxt(eqYm) + '</b><button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
+      v.innerHTML = '<div class="cab"><h1>Calendario del equipo</h1><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button>' + selMes(eqYm) + '<button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
         '<div class="matriz"><table><thead><tr><th class="nom">Trabajador</th>' + r.dias.map(function (d) {
           return '<th class="' + (d.dow > 5 ? 'fin' : '') + '"' + (d.fecha === hoy ? ' style="color:var(--accent)"' : '') + '>' + DIAS_C[d.dow - 1] + '<br>' + +d.fecha.slice(8) + '</th>'; }).join('') + '</tr></thead><tbody>' +
         r.filas.map(function (f) {
@@ -1125,6 +1205,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
           '<span><i style="box-shadow:inset 0 0 0 2px var(--danger)"></i>Incidencia</span><span>– = laborable sin fichar</span></div>' +
         '<p class="ayuda" style="margin:0">Pulsa en un nombre para ver su calendario completo con los fichajes de cada día.</p>';
       $$('[data-mes]', v).forEach(function (b) { b.onclick = function () { eqYm = moverMes(eqYm, +b.dataset.mes); vEquipo(v).catch(fallo); }; });
+      $$('.sel-mes', v).forEach(function (sel) { sel.onchange = function () { eqYm = sel.value; vEquipo(v).catch(fallo); }; });
       v.querySelector('tbody').onclick = function (e) { var n = e.target.closest('[data-cal]'); if (n) ir('calendario', { trabajadorId: n.dataset.cal, ym: eqYm }); };
     });
   }
@@ -1154,18 +1235,24 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var auYm = null;
   function vAusencias(v) {
     auYm = auYm || hoyStr().slice(0, 7);
-    return Promise.all([api('ausencias', auYm), selectorTrabajador('au-t', '', null)]).then(function (r) {
-      var d = r[0];
+    return Promise.all([api('ausencias', auYm), api('trabajadores')]).then(function (r) {
+      var d = r[0], plantilla = r[1].filter(function (t) { return t.activo; });
       v.innerHTML = '<h1>Ausencias y eventos</h1>' +
         '<form class="tarjeta" id="f-au" novalidate><h3>Asignar</h3><div class="rejilla">' +
-          '<div class="campo"><label for="au-t">Para</label>' + r[1].replace('<select id="au-t" aria-label="Trabajador">', '<select id="au-t"><option value="*">Toda la plantilla</option>') + '</div>' +
           '<div class="campo"><label for="au-tipo">Tipo</label><select id="au-tipo">' + d.tipos.map(function (t) { return '<option value="' + t.id + '">' + t.nombre + '</option>'; }).join('') + '</select></div>' +
-          '</div>' + bloqueModalidad('au') +
+          '</div>' +
+          '<div class="campo"><span class="lbl">Para</span><div class="seg" role="group" aria-label="A quién se aplica" id="au-para">' +
+            '<button type="button" data-para="todos" aria-pressed="true">Toda la plantilla</button><button type="button" data-para="elegir" aria-pressed="false">Elegir trabajadores</button></div>' +
+            '<div id="au-lista" class="lista-checks" hidden>' +
+              '<div class="fila"><button type="button" class="btn mini sec" id="au-marcar">Marcar todos</button><button type="button" class="btn mini sec" id="au-desmarcar">Desmarcar</button><span class="ayuda" id="au-cuenta"></span></div>' +
+              plantilla.map(function (t) { return '<label class="check"><input type="checkbox" value="' + t.id + '"> ' + t.id + ' · ' + esc(t.nombre + ' ' + t.apellidos) + (t.puesto ? ' <span class="ayuda">(' + esc(t.puesto) + ')</span>' : '') + '</label>'; }).join('') +
+            '</div></div>' +
+          bloqueModalidad('au') +
           '<div class="campo"><label for="au-nota">Nota <span class="ayuda">(p. ej. nombre de la competición)</span></label><input id="au-nota"></div>' +
           '<p class="ayuda" style="margin:0" id="au-efecto"></p>' +
-          '<p class="ayuda" style="margin:0">Los festivos nacionales se añaden solos cada año. Asigna aquí los autonómicos y locales como «Festivo» para toda la plantilla, y también el traslado a lunes cuando un festivo nacional cae en domingo.</p>' +
+          '<p class="ayuda" style="margin:0">Los festivos nacionales se añaden solos cada año. Asigna aquí los autonómicos y locales como «Festivo», para toda la plantilla o solo para quienes trabajan en esa provincia o localidad, y también el traslado a lunes cuando un festivo nacional cae en domingo.</p>' +
           '<div class="botones"><button class="btn prim" type="submit">Asignar</button></div></form>' +
-        '<div class="cab"><h2>Este mes</h2><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button><b>' + mesTxt(auYm) + '</b><button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
+        '<div class="cab"><h2>Este mes</h2><div class="mesnav"><button class="btn sec" data-mes="-1" aria-label="Mes anterior">‹</button>' + selMes(auYm) + '<button class="btn sec" data-mes="1" aria-label="Mes siguiente">›</button></div></div>' +
         '<div class="tabla"><table><thead><tr><th>Quién</th><th>Tipo</th><th>Fechas</th><th>Nota</th><th>Estado</th><th></th></tr></thead><tbody>' +
         (d.lista.length ? d.lista.map(function (a) {
           return '<tr><td>' + esc(a.nombre) + '</td><td><span class="pill"><i style="background:var(--a-' + a.tipo + ')"></i>' + esc(a.tipoNombre) + '</span></td><td>' + rango(a) + '</td><td>' + esc(a.motivo) + '</td>' +
@@ -1173,13 +1260,24 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
         }).join('') : '<tr><td colspan="6" class="vacio">Nada asignado este mes.</td></tr>') + '</tbody></table></div>';
       function efecto() { var t = d.tipos.filter(function (x) { return x.id === $('#au-tipo').value; })[0]; $('#au-efecto').textContent = t.resta ? 'Estos días no cuentan como horas teóricas.' : 'No cambia las horas teóricas: se fichan como un día normal y quedan marcados en el calendario.'; }
       $('#au-tipo').onchange = efecto; efecto();
-      var datosAu = enlazarModalidad('au', v, 'au-tipo');
+      var datosAu = enlazarModalidad('au', v, 'au-tipo'), paraTodos = true;
+      function contar() { var n = $$('#au-lista input:checked', v).length; $('#au-cuenta').textContent = n ? n + ' seleccionado' + (n > 1 ? 's' : '') : 'Ninguno seleccionado'; }
+      $('#au-para').onclick = function (e) {
+        var b = e.target.closest('[data-para]'); if (!b) return; paraTodos = b.dataset.para === 'todos';
+        $$('#au-para button', v).forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); $('#au-lista').hidden = paraTodos; contar();
+      };
+      $('#au-marcar').onclick = function () { $$('#au-lista input', v).forEach(function (c) { c.checked = true; }); contar(); };
+      $('#au-desmarcar').onclick = function () { $$('#au-lista input', v).forEach(function (c) { c.checked = false; }); contar(); };
+      $('#au-lista').addEventListener('change', contar);
       $('#f-au').addEventListener('submit', function (e) {
         e.preventDefault();
-        api('crearAusencia', Object.assign(datosAu(), { trabajadorId: $('#au-t').value, tipo: $('#au-tipo').value, motivo: $('#au-nota').value }))
+        var ids = $$('#au-lista input:checked', v).map(function (c) { return c.value; });
+        if (!paraTodos && !ids.length) return toast('Elige al menos un trabajador.');
+        api('crearAusencia', Object.assign(datosAu(), paraTodos ? { trabajadorId: '*' } : { trabajadorIds: ids }, { tipo: $('#au-tipo').value, motivo: $('#au-nota').value }))
           .then(function () { toast('Asignado'); auYm = $('#au-desde').value.slice(0, 7); vAusencias(v).catch(fallo); }).catch(fallo);
       });
       $$('[data-mes]', v).forEach(function (b) { b.onclick = function () { auYm = moverMes(auYm, +b.dataset.mes); vAusencias(v).catch(fallo); }; });
+      $$('.sel-mes', v).forEach(function (sel) { sel.onchange = function () { auYm = sel.value; vAusencias(v).catch(fallo); }; });
       v.querySelector('tbody').onclick = function (e) {
         var b = e.target.closest('[data-anular-a]'); if (!b) return;
         if (!b.dataset.paso) { b.dataset.paso = 1; b.textContent = '¿Seguro?'; b.classList.add('peligro'); return; }
