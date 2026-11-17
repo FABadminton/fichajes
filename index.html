@@ -336,7 +336,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
-  var VERSION_APP = '1.6 (17-11-2026)';
+  var VERSION_APP = '1.7 (17-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
@@ -419,8 +419,47 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
 
   // ---------- conexión con el servidor ----------
   var token = leerLocal('fichajes-token'), usuario = null, est = null;
+  // Consultas de solo lectura: se muestran al instante con lo último que se vio y se actualizan por detrás.
+  var LECTURAS = ['calendario', 'misSolicitudes', 'miCuenta', 'misAvisos', 'panel', 'trabajadores', 'puestos', 'contratos',
+    'pendientes', 'ausencias', 'fichajes', 'equipo'];
+  var memo = {};
   function api(fn) {
     var args = Array.prototype.slice.call(arguments, 1);
+    if (LECTURAS.indexOf(fn) >= 0) {
+      var k = fn + '|' + JSON.stringify(args), m = memo[k];
+      if (m) {
+        if (Date.now() - m.t > 15000 && !m.pidiendo) {
+          m.pidiendo = true; var ruta = rutaActual;
+          llamar(fn, args).then(function (d) {
+            var j = JSON.stringify(d), cambio = !memo[k] || memo[k].json !== j;
+            memo[k] = { t: Date.now(), json: j };
+            if (cambio && ruta === rutaActual) refrescarVista();
+          }).catch(function () { if (memo[k]) memo[k].pidiendo = false; });
+        }
+        return Promise.resolve(JSON.parse(m.json));
+      }
+      return llamar(fn, args).then(function (d) { memo[k] = { t: Date.now(), json: JSON.stringify(d) }; return d; });
+    }
+    if (fn !== 'logo') memo = {};               // cualquier cambio invalida lo guardado
+    return llamar(fn, args).then(function (d) { if (fn !== 'logo') memo = {}; return d; });
+  }
+  /** Vuelve a pintar la pantalla actual con los datos nuevos, sin parpadeo, salvo si estás escribiendo o con un formulario abierto. */
+  function refrescarVista() {
+    var a = document.activeElement;
+    if (!$('#velo').hidden || tipoPend || rutaActual === 'cuenta' || rutaActual === 'fichar') return;
+    if (a && /INPUT|TEXTAREA|SELECT/.test(a.tagName) && $('#vista').contains(a)) return;
+    var y = window.scrollY;
+    RUTAS[rutaActual].f($('#vista')).then(function () { window.scrollTo(0, y); }).catch(function () {});
+  }
+  /** Tras entrar, deja cargadas en segundo plano las pantallas del trabajador. */
+  function precargar() {
+    var ym = hoyStr().slice(0, 7);
+    setTimeout(function () {
+      [['calendario', ym, ''], ['misSolicitudes'], ['miCuenta'], ['misAvisos']].concat(usuario.rol === 'admin' ? [['panel']] : [])
+        .forEach(function (x) { api.apply(null, x).catch(function () {}); });
+    }, 300);
+  }
+  function llamar(fn, args) {
     return new Promise(function (ok, ko) {
       if (window.FICHAJES_API) {
         fetch(window.FICHAJES_API, { method: 'POST', body: JSON.stringify({ fn: fn, token: token, args: args }) })
@@ -459,7 +498,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     api('login', $('#l-num').value, $('#l-pin').value).then(function (r) {
       token = r.token; usuario = r.usuario; guardarLocal('fichajes-token', token);
       $('#p-actual').value = $('#l-pin').value; $('#l-pin').value = '';
-      if (r.debeCambiar) { mostrar('pin'); $('#p-nueva').focus(); } else arrancar();
+      if (r.debeCambiar) { mostrar('pin'); $('#p-nueva').focus(); } else arrancar(r.estado);
     }).catch(function (e) { if (e.message !== 'silencio') { $('#l-error').textContent = e.message; $('#l-error').hidden = false; } })
       .then(function () { b.disabled = false; });
   });
@@ -530,11 +569,12 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   $('#salir').onkeydown = function (e) { if (e.key === 'Enter') cerrarSesion(''); };
 
   var estadoInicial = null;
-  function arrancar() {
-    return api('estado').then(function (r) {
+  function arrancar(r0) {
+    return (r0 ? Promise.resolve(r0) : api('estado')).then(function (r) {
       aplicarEstado(r); usuario = r.usuario; mostrar('app'); estadoInicial = r;
       ir(rutaActual);
       actualizarPendientes();
+      precargar();
     }).catch(function (e) { if (e.message !== 'silencio') cerrarSesion(e.message); });
   }
   function actualizarPendientes() {
@@ -623,7 +663,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     });
   }
   function confirmarFichaje() {
-    var b = $('#conf-si'); if (b.disabled) return; b.disabled = true;
+    var b = $('#conf-si'); if (b.disabled) return; b.disabled = true; var txtB = b.textContent; b.textContent = 'Registrando…';
     var tipo = tipoPend, com = $('#comentario').value;
     // Como mucho 4 s más esperando al GPS: después se ficha igualmente (sin ubicación si no ha llegado).
     Promise.race([geoProm || Promise.resolve(), new Promise(function (ok) { setTimeout(ok, 4000); })]).then(function () {
@@ -635,7 +675,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       toast(ETQ[u.tipo] + ' registrada a las ' + u.hora);
       try { if (navigator.vibrate) navigator.vibrate(40); } catch (e) {}
       tipoPend = null; aplicarEstado(r); estadoInicial = r; ir('fichar');
-    }).catch(function (e) { fallo(e); b.disabled = false; });
+    }).catch(function (e) { fallo(e); b.disabled = false; b.textContent = txtB; });
   }
   function tic() {
     var r = $('#reloj'); if (!r || !est) return;
