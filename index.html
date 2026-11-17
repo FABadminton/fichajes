@@ -126,17 +126,22 @@ main { min-height: 100vh; }
 /* Barra inferior de iconos (móvil) */
 .tabbar { display: none; }
 @media (max-width: 899px) {
-  .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; background: var(--surface); border-top: 1px solid var(--line);
-    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px;
-    padding: 6px max(6px, env(safe-area-inset-right, 0px)) calc(6px + env(safe-area-inset-bottom, 0px)) max(6px, env(safe-area-inset-left, 0px)); }
+  /* Barra flotante: separada de los bordes, redondeada y con sombra */
+  .tabbar { position: fixed; z-index: 40; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 2px; padding: 6px;
+    left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px)); max-width: 520px; margin: 0 auto;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); border: 1px solid var(--line); border-radius: 24px;
+    -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4);
+    box-shadow: 0 10px 30px rgba(10, 30, 20, .18), 0 2px 6px rgba(10, 30, 20, .10); }
+  @supports not (background: color-mix(in srgb, red 50%, transparent)) { .tabbar { background: var(--surface); } }
   .tabbar button { border: 0; background: transparent; color: var(--muted); display: flex; flex-direction: column; align-items: center; justify-content: center;
-    gap: 3px; font: 600 11px/1.1 var(--f-body); padding: 6px 2px; border-radius: 12px; min-height: 54px; cursor: pointer; position: relative; }
+    gap: 3px; font: 600 11px/1.1 var(--f-body); padding: 6px 2px; border-radius: 18px; min-height: 54px; cursor: pointer; position: relative; }
   .tabbar svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .tabbar button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
   .tabbar button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
   .tabbar .badge { position: absolute; top: 2px; right: calc(50% - 22px); background: var(--danger); color: #fff; border-radius: 999px; font-size: 10px; padding: 1px 6px; }
-  .contenido { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)) !important; }
-  .toast { bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; }
+  .contenido { padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)) !important; }
+  .toast { bottom: calc(96px + env(safe-area-inset-bottom, 0px)) !important; }
   .barra .hamb { display: none; }
 }
 .barra b { font: 700 20px/1 var(--f-display); }
@@ -331,7 +336,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
-  var VERSION_APP = '1.5 (12-11-2026)';
+  var VERSION_APP = '1.6 (17-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
