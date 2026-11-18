@@ -292,8 +292,10 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     <form class="tarjeta" id="f-login" novalidate>
       <div class="campo"><label for="l-num">Número de trabajador</label><input id="l-num" inputmode="numeric" autocomplete="username" placeholder="01" maxlength="4"></div>
       <div class="campo"><label for="l-pin">Clave</label><input id="l-pin" class="pin-input" type="password" inputmode="numeric" autocomplete="current-password" maxlength="10"></div>
+      <label class="check"><input type="checkbox" id="l-mantener" checked> Mantener la sesión iniciada en este dispositivo</label>
       <div class="aviso error" id="l-error" hidden></div>
       <button class="btn prim" type="submit" id="l-btn">Entrar</button>
+      <p class="ayuda" style="margin:0">Desmárcalo si usas un ordenador o móvil compartido.</p>
     </form>
     <p class="ayuda">¿Has olvidado tu clave? Pide a administración que te genere una nueva.</p>
     <p class="ayuda version" id="ver-login"></p>
@@ -338,7 +340,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
-  var VERSION_APP = '1.8 (17-11-2026)';
+  var VERSION_APP = '1.9 (18-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
@@ -503,8 +505,9 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   $('#f-login').addEventListener('submit', function (ev) {
     ev.preventDefault();
     var b = $('#l-btn'); b.disabled = true; $('#l-error').hidden = true;
-    api('login', $('#l-num').value, $('#l-pin').value).then(function (r) {
-      token = r.token; usuario = r.usuario; guardarLocal('fichajes-token', token);
+    var mantener = $('#l-mantener').checked;
+    api('login', $('#l-num').value, $('#l-pin').value, mantener).then(function (r) {
+      token = r.token; usuario = r.usuario; guardarLocal('fichajes-token', mantener ? token : null);
       $('#p-actual').value = $('#l-pin').value; $('#l-pin').value = '';
       if (r.debeCambiar) { mostrar('pin'); $('#p-nueva').focus(); } else arrancar(r.estado);
     }).catch(function (e) { if (e.message !== 'silencio') { $('#l-error').textContent = e.message; $('#l-error').hidden = false; } })
@@ -1037,7 +1040,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       (nuevo ? '' : '<h2>Clave de acceso</h2>' + (t.debeCambiar
         ? '<div class="cred"><span>Clave provisional (el trabajador aún no la ha cambiado)</span><b class="num">' + esc(t.pinInicial) + '</b></div>'
         : '<p class="ayuda" style="margin:0">El trabajador ya tiene su clave personal. Por seguridad no se puede ver; si la ha olvidado, genera una nueva.</p>') +
-        '<div class="fila"><button type="button" class="btn sec" id="t-regen">Generar clave nueva</button><button type="button" class="btn sec" id="t-cal">Ver su calendario</button></div>') +
+        '<div class="fila"><button type="button" class="btn sec" id="t-regen">Generar clave nueva</button><button type="button" class="btn sec" id="t-sesiones">Cerrar sus sesiones abiertas</button><button type="button" class="btn sec" id="t-cal">Ver su calendario</button></div>') +
       '<div class="aviso error" hidden></div>' +
       '<div class="botones"><button type="button" class="btn sec" data-cerrar>Cancelar</button><button class="btn prim" type="submit">' + (nuevo ? 'Dar de alta' : 'Guardar cambios') + '</button></div></form>');
     function totalH() {
@@ -1067,6 +1070,12 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
         var b = this;
         if (!paso) { paso = 1; b.textContent = 'Pulsa otra vez para confirmar'; b.classList.add('peligro'); return; }
         api('regenerarPin', t.id).then(function (r) { cerrarHoja(); mostrarCredenciales(t.id, t.nombre, r.pin, false); }).catch(function (e) { errorHoja(e.message); });
+      };
+      $('#t-sesiones', h).onclick = function () {
+        var b = this;
+        if (!b.dataset.paso) { b.dataset.paso = 1; b.textContent = 'Pulsa otra vez para confirmar'; b.classList.add('peligro'); return; }
+        api('cerrarSesiones', t.id).then(function (r) { b.textContent = r.cerradas ? 'Sesiones cerradas: ' + r.cerradas : 'No tenía sesiones abiertas'; b.disabled = true; b.classList.remove('peligro'); })
+          .catch(function (e) { errorHoja(e.message); });
       };
       $('#t-cal', h).onclick = function () { cerrarHoja(); ir('calendario', { trabajadorId: t.id }); };
     }
