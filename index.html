@@ -340,7 +340,7 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
   var $ = function (s, r) { return (r || document).querySelector(s); };
   var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
   var TZ = 'Europe/Madrid';
-  var VERSION_APP = '2.0 (23-11-2026)';
+  var VERSION_APP = '2.1 (24-11-2026)';
   var ETQ = { ENTRADA: 'Entrada', SALIDA: 'Salida', PAUSA_INICIO: 'Inicio de pausa', PAUSA_FIN: 'Fin de pausa' };
   var BOTON = { ENTRADA: 'Fichar entrada', SALIDA: 'Fichar salida', PAUSA_INICIO: 'Empezar pausa', PAUSA_FIN: 'Volver de la pausa' };
   var ESTADO_TXT = { FUERA: 'Fuera de jornada', TRABAJANDO: 'Trabajando', PAUSA: 'En pausa' };
@@ -775,13 +775,22 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
     return Promise.all([esAdmin ? Promise.resolve({ tipos: [] }) : api('misSolicitudes'), esAdmin ? api('trabajadores') : Promise.resolve([])]).then(function (rr) {
       var r = rr[0], plantilla = rr[1].filter(function (t) { return t.activo; });
       var que = op.que || (esAdmin ? 'olvido' : 'ausencia'), modo = 'uno', jornada = '';
+      var previa = null; // resultado de la vista previa del rango automático
       function horarioSel() { if (!esAdmin) return null; var t = plantilla.filter(function (x) { return x.id === $('#s-trab', h).value; })[0]; return t ? t.horario : {}; }
       var h = abrirHoja('<form id="f-sol" novalidate style="display:contents"><h3>' + (esAdmin ? 'Registrar fichaje (administración)' : 'Nueva solicitud') + '</h3>' +
         (esAdmin ? '<div class="campo"><label for="s-trab">Trabajador</label><select id="s-trab">' + plantilla.map(function (t) {
             return '<option value="' + t.id + '"' + (t.id === op.trabajadorId ? ' selected' : '') + '>' + t.id + ' · ' + esc(t.nombre + ' ' + t.apellidos) + '</option>'; }).join('') + '</select></div>' : '') +
-        '<div class="seg' + (esAdmin ? '' : ' seg3') + '" role="group" aria-label="Qué necesitas" id="s-que">' +
+        '<div class="seg seg3" role="group" aria-label="Qué necesitas" id="s-que">' +
           (esAdmin ? '' : '<button type="button" data-que="ausencia">Vacaciones o permiso</button>') +
-          '<button type="button" data-que="olvido">' + (esAdmin ? 'Añadir fichaje' : 'Olvidé fichar') + '</button><button type="button" data-que="anular">Anular un fichaje</button></div>' +
+          '<button type="button" data-que="olvido">' + (esAdmin ? 'Añadir fichaje' : 'Olvidé fichar') + '</button>' +
+          (esAdmin ? '<button type="button" data-que="rango">Auto (rango de fechas)</button>' : '') +
+          '<button type="button" data-que="anular">Anular un fichaje</button></div>' +
+        // --- rango automático (solo administración)
+        '<div id="s-rng" style="display:flex;flex-direction:column;gap:14px">' +
+          '<div class="rejilla"><div class="campo"><label for="r-desde">Desde</label><input type="date" id="r-desde" max="' + hoyStr() + '"></div>' +
+          '<div class="campo"><label for="r-hasta">Hasta (incluido)</label><input type="date" id="r-hasta" max="' + hoyStr() + '" value="' + hoyStr() + '"></div></div>' +
+          '<div class="aviso">Registra la <b>jornada completa según el horario</b> de cada día laborable del rango. Se saltan los días que ya tienen fichajes, los festivos, las vacaciones y permisos, y los días sin horario. Primero verás qué se va a registrar.</div>' +
+          '<div id="r-previa"></div></div>' +
         // --- ausencias
         '<div id="s-aus" style="display:flex;flex-direction:column;gap:14px">' +
           '<div class="campo"><label for="a-tipo">Tipo</label><select id="a-tipo">' + r.tipos.map(function (t) { return '<option value="' + t.id + '">' + t.nombre + '</option>'; }).join('') + '</select></div>' +
@@ -829,7 +838,8 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       }
       function pintar() {
         $$('#s-que button', h).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.que === que); });
-        $('#s-aus', h).hidden = que !== 'ausencia'; $('#s-olv', h).hidden = que !== 'olvido'; $('#s-anu', h).hidden = que !== 'anular';
+        $('#s-aus', h).hidden = que !== 'ausencia'; $('#s-olv', h).hidden = que !== 'olvido'; $('#s-anu', h).hidden = que !== 'anular'; $('#s-rng', h).hidden = que !== 'rango';
+        if (esAdmin) { previa = null; $('#r-previa', h).innerHTML = ''; $('#s-enviar', h).textContent = que === 'rango' ? 'Ver qué se registrará' : 'Registrar'; }
         $('#s-motivo', h).placeholder = que === 'ausencia' ? '' : que === 'olvido' ? 'Ej.: olvidé fichar al terminar el entrenamiento' : 'Ej.: fiché la salida por error a media mañana';
         $('#s-motivo-ayuda', h).textContent = que === 'ausencia' ? '(opcional en vacaciones)' : esAdmin ? '(obligatorio; lo verá el trabajador)' : '';
         $('#s-nota', h).textContent = que === 'ausencia' ? '' : esAdmin
@@ -843,12 +853,33 @@ tfoot td { font-weight: 700; background: var(--surface-2); }
       $('#o-jornada', h).onclick = function (e) { var b = e.target.closest('[data-j]'); if (b) { jornada = b.dataset.j; pintarOlvido(); proponerHoras(); } };
       $('#o-fecha', h).onchange = function () { pintarOlvido(); if (jornada) proponerHoras(); };
       $('#n-fecha', h).onchange = cargarFichajes;
-      if (esAdmin) $('#s-trab', h).onchange = function () { if (que === 'olvido') { pintarOlvido(); if (jornada) proponerHoras(); } else cargarFichajes(); };
+      if (esAdmin) $('#s-trab', h).onchange = function () { if (que === 'olvido') { pintarOlvido(); if (jornada) proponerHoras(); } else if (que === 'anular') cargarFichajes(); else pintar(); };
+      if (esAdmin) ['#r-desde', '#r-hasta'].forEach(function (q) { $(q, h).onchange = function () { if (que === 'rango') pintar(); }; });
       if (esAdmin) { $('#o-fecha', h).removeAttribute('max'); $('#o-fecha', h).max = hoyStr(); $('#s-enviar', h).textContent = 'Registrar'; }
       pintar();
       $('#f-sol', h).addEventListener('submit', function (e) {
         e.preventDefault();
         var motivo = $('#s-motivo', h).value, pet, fn = esAdmin ? 'fichajeAdmin' : 'solicitarCorreccion', extra = esAdmin ? { trabajadorId: $('#s-trab', h).value } : {};
+        if (que === 'rango') {
+          var datosR = Object.assign({ desde: $('#r-desde', h).value, hasta: $('#r-hasta', h).value, motivo: motivo }, extra), bR = $('#s-enviar', h);
+          bR.disabled = true;
+          api('fichajeAdminRango', Object.assign({ simular: !previa }, datosR)).then(function (res) {
+            bR.disabled = false;
+            if (res.simulado) {
+              previa = res;
+              $('#r-previa', h).innerHTML = '<div class="tarjeta" style="gap:8px"><b>' + res.crear.length + ' día' + (res.crear.length === 1 ? '' : 's') + ' a registrar para ' + esc(res.trabajador) + '</b>' +
+                (res.crear.length ? '<div class="ayuda" style="max-height:160px;overflow:auto">' + res.crear.map(function (c) { return fechaCorta(c.fecha) + ' · ' + esc(c.tramos); }).join('<br>') + '</div>' : '') +
+                (res.omitidos.length ? '<details><summary class="ayuda">' + res.omitidos.length + ' día' + (res.omitidos.length === 1 ? '' : 's') + ' que se saltan</summary><div class="ayuda" style="max-height:160px;overflow:auto">' +
+                  res.omitidos.map(function (o) { return fechaCorta(o.fecha) + ' · ' + esc(o.motivo); }).join('<br>') + '</div></details>' : '') + '</div>';
+              bR.textContent = res.crear.length ? 'Registrar ' + res.crear.length + ' día' + (res.crear.length === 1 ? '' : 's') : 'Nada que registrar';
+              bR.disabled = !res.crear.length;
+            } else {
+              cerrarHoja(); toast(res.crear.length + ' días registrados'); actualizarPendientes();
+              if (rutaActual === 'fichajes' || rutaActual === 'calendario') ir(rutaActual, param);
+            }
+          }).catch(function (er) { bR.disabled = false; errorHoja(er.message); });
+          return;
+        }
         if (que === 'ausencia') pet = api('solicitarAusencia', Object.assign(datosA(), { tipo: $('#a-tipo', h).value, motivo: motivo }));
         else if (que === 'anular') pet = api(fn, Object.assign({ accion: 'ANULAR', fichajeId: $('#n-fich', h).value, motivo: motivo }, extra));
         else {
